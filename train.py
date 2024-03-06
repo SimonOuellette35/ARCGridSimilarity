@@ -7,16 +7,21 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 device = 'cuda'
-num_epochs = 100000
-lr0 = 0.0001
+num_epochs = 500000
+lr0 = 0.0002
 grid_size = 5
+
+EMB_DIM = 64
+NUM_HEADS = 4
+NUM_ENC_LAYERS = 5
+NUM_DEC_LAYERS = 5
 
 model = Transformer(input_vocab_size=11,
                     output_vocab_size=11,
-                    dim_model=64,
-                    num_heads=4,
-                    num_encoder_layers=5,
-                    num_decoder_layers=5,
+                    dim_model=EMB_DIM,
+                    num_heads=NUM_HEADS,
+                    num_encoder_layers=NUM_ENC_LAYERS,
+                    num_decoder_layers=NUM_DEC_LAYERS,
                     dropout_p=0.).to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=lr0)
@@ -29,7 +34,6 @@ train_loader = DataLoader(train_dataset,
 
 for epoch in range(num_epochs):
     epoch_train_loss = 0.
-    epoch_val_loss = 0.
     num_batches = 0.
 
     for batch_idx, train_batch in enumerate(train_loader):
@@ -66,3 +70,5 @@ for epoch in range(num_epochs):
     epoch_train_loss /= float(num_batches)
 
     print("Epoch #%i: %.4f" % (epoch, epoch_train_loss))
+
+    torch.save(model.state_dict(), 'grid_sim_model.pt')
