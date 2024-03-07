@@ -1,10 +1,11 @@
 from model.TransformerModel import Transformer
-from datasets.dataset import ARCGymDistanceDataset
+from datasets.distance_dataset import ARCGymDistanceDataset
 import ARC_gym.primitives as primitives
 from torch.utils.data import DataLoader
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+
 
 device = 'cuda'
 num_epochs = 500000
