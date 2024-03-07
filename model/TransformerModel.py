@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import math
+import numpy as np
 
 class PositionalEncoding(nn.Module):
 
@@ -39,12 +39,14 @@ class Transformer(nn.Module):
         num_encoder_layers,
         num_decoder_layers,
         dropout_p,
+        device='cuda'
     ):
         super().__init__()
 
         # INFO
         self.model_type = "Transformer"
         self.dim_model = dim_model
+        self.device = device
 
         # LAYERS
         self.positional_encoder = PositionalEncoding(d_model=dim_model, dropout=dropout_p, max_len=51)
@@ -87,3 +89,26 @@ class Transformer(nn.Module):
         mask = mask.masked_fill(mask == 1, float(0.0))  # Convert ones to 0
 
         return mask
+
+    # This function takes as input a starting grid and a target grid, and returns the similarity.
+    def evaluate(self, start_grids, target_grids):
+
+        flattened_start_grids = np.reshape(start_grids, [start_grids.shape[0], -1])
+        flattened_target_grids = np.reshape(target_grids, [target_grids.shape[0], -1])
+
+        # TODO: if the colors are from 1 to 10, rather than 0 to 9, should use 0 instead of 10 as separator token
+        separators = np.ones([start_grids.shape[0], 1]) * 10
+
+        x_input = np.concatenate((flattened_start_grids, separators, flattened_target_grids), axis=1)
+
+        # SoS token for each sequence in the batch
+        sos_tokens = torch.tensor([[0]] * start_grids.shape[0]).to(self.device).long()
+
+        x_input = torch.from_numpy(x_input).to(self.device).long()
+        preds = self(x_input, sos_tokens)
+        preds = preds.permute(1, 0, 2)
+
+        preds = np.argmax(preds.cpu().data.numpy(), axis=-1)
+
+        # aggregate heuristic values across all k examples.
+        return np.mean(preds)

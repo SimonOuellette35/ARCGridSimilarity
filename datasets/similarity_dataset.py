@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np
-
+import os, json
+import random
 
 # Define a color map
 COLOR_MAP = {
@@ -15,6 +16,74 @@ COLOR_MAP = {
     8: 'aquamarine',
     9: 'white'
 }
+
+
+def convertToSimilarity(num_transformations, max_transforms):
+    return 1 - num_transformations / max_transforms
+
+# Using this dataset requires cloning the repo: https://github.com/fchollet/ARC
+class ARCInspiredSimilarityDataset(Dataset):
+
+    def __init__(self, primitives, grid_dim=5, base_dir="ARC/data/training"):
+        self.primitives = primitives
+        self.base_dir = base_dir
+        self.grid_dim = grid_dim
+        self.arc_files = os.listdir(base_dir)
+        self.all_grids = []
+        self.max_transformations = 8
+
+        self.load_grids()
+
+    def arc_to_numpy(self, fpath):
+        with open(fpath) as f:
+            content = json.load(f)
+
+        grids = []
+        for g in content["train"]:
+            grids.append(np.array(g["input"], dtype="int8"))
+            grids.append(np.array(g["output"], dtype="int8"))
+        for g in content["test"]:
+            grids.append(np.array(g["input"], dtype="int8"))
+        return grids
+
+    def load_grids(self):
+        for fname in self.arc_files:
+            fpath = os.path.join(self.base_dir, fname)
+            self.all_grids.extend(self.arc_to_numpy(fpath))
+
+    def sampleGridPatch(self):
+
+        min_side = 0
+        while min_side < self.grid_dim + 1:
+            i = random.randint(0, len(self.all_grids) - 1)
+            grid = self.all_grids[i]
+            min_side = min(grid.shape[0], grid.shape[1])
+        i = random.randint(0, grid.shape[0] - self.grid_dim - 1)
+        j = random.randint(0, grid.shape[1] - self.grid_dim - 1)
+        start_grid = grid[i:i + self.grid_dim, j:j + self.grid_dim]
+
+        end_grid = np.copy(start_grid)
+        num_transformations = random.randint(0, self.max_transformations - 1)
+        for _ in range(num_transformations):
+            i = np.random.choice(np.arange(len(self.primitives)))
+            end_grid = self.primitives[i][0](end_grid)
+
+        return start_grid, end_grid, num_transformations
+
+    def __len__(self):
+        return len(self.all_grids)
+
+    def __getitem__(self, idx):
+        start_grid, end_grid, y = self.sampleGridPatch()
+
+        flattened_start_grid = np.reshape(start_grid, [-1])
+        flattened_end_grid = np.reshape(end_grid, [-1])
+        print("flattened_X_start = ", flattened_start_grid)
+
+        # TODO: if the colors are from 1 to 10, rather than 0 to 9, should use 0 instead of 10 as separator token
+        x = np.concatenate((flattened_start_grid, [10], flattened_end_grid))
+        y = convertToSimilarity(y, self.max_transformations)
+        return [x, y]
 
 class ARCGymSimilarityDataset(Dataset):
 
@@ -65,13 +134,12 @@ class ARCGymSimilarityDataset(Dataset):
 
         flattened_X_start = np.reshape(X_start, [-1])
         flattened_X_end = np.reshape(X_end, [-1])
+
+        # TODO: if the colors are from 1 to 10, rather than 0 to 9, should use 0 instead of 10 as separator token
         X = np.concatenate((flattened_X_start, [10], flattened_X_end))
 
-        y = self.convertToSimilarity(num_transformations)
+        y = convertToSimilarity(num_transformations, self.MAX_TRANSFORMS)
         return X, np.array([y])
-
-    def convertToSimilarity(self, num_transformations):
-        return 1 - num_transformations / self.MAX_TRANSFORMS
 
     def __getitem__(self, idx):
         x, y = self.generateGridDistanceSample()

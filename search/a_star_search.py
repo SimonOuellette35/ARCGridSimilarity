@@ -1,9 +1,10 @@
 import numpy as np
 
-VERBOSE = True
+VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 50000
+HEURISTIC_TYPE = 'distance' # alternative: 'similarity'
 
 class Node:
 
@@ -20,7 +21,8 @@ class Node:
         self.h = None
         self.children = []
 
-    def apply_primitive(self, prim_func, grid_batch):
+    @staticmethod
+    def apply_primitive(prim_func, grid_batch):
         transformed_batch = []
         for grid in grid_batch:
             tmp_grid = prim_func(grid)
@@ -46,7 +48,7 @@ class Node:
 
                 child_node = Node(self.support_x, self.support_y,   # TODO: copies of the support set in each node is
                                                                     #  redundant
-                                  transformed_grid, idx,
+                                  transformed_grid, prim,
                                   self.all_primitives,              # TODO: also redundant?
                                   name="%s/%s" % (self.name, prim[1]))
 
@@ -64,23 +66,27 @@ class Node:
 
         return self.children
 
-    def brute_force_h(self):
+    def calc_h(self, model):
         a = np.reshape(self.current_grid, [-1])
         b = np.reshape(self.support_y, [-1])
         found = np.all(a == b)
 
         if found:
-            return 0.
+            return 0
         else:
-            return 1.
+            if model is None:
+                return 1
 
-    def calc_h(self, model):
-        if model is None:
-            return self.brute_force_h()
+            if self.h is None:
+                # h must be the distance to the goal, while the model returns the similarity. Hence the 1 - similarity to
+                # get the value of h.
+                pred = model.evaluate(np.array(self.current_grid), self.support_y)
 
-        if self.h is None:
-            self.h = model.evaluate(self.current_grid, self.support_y)
-        else:
+                if HEURISTIC_TYPE == 'distance':
+                    self.h = pred
+                else:
+                    self.h = int((1. - pred) * 100)
+
             return self.h
 
     # for the "in" operation
@@ -88,6 +94,12 @@ class Node:
         a = np.reshape(self.current_grid, [-1])
         b = np.reshape(other_node.current_grid, [-1])
         return np.all(a == b)
+
+    def __repr__(self):
+        if self.parent_primitive is None:
+            return 'root'
+
+        return self.parent_primitive[1]
 
 class AStarSearch():
 
@@ -108,9 +120,7 @@ class AStarSearch():
             bound += 1
             iteration_node_expansion = 0
 
-        # TODO: eventually also return the actual program
-
-        return found, total_node_expansion
+        return found, path, total_node_expansion
 
     MAX_G = 45
 
