@@ -90,9 +90,11 @@ stats = {
 
 for batch_idx, eval_task in enumerate(eval_loader):
 
-    S, Q = eval_task
-
-    root_node = Node(S[:, 0], S[:, 1], S[:, 0], None)
+    root_node = Node(np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
+                     np.reshape(eval_task['ys'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
+                     np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
+                     parent_primitive=None,
+                     all_primitives=primitives.get_total_set())
 
     # 1) Run uninformed search
     path = [copy.deepcopy(root_node)]
@@ -106,25 +108,27 @@ for batch_idx, eval_task in enumerate(eval_loader):
     stats['elapsed1'].append(elapsed1)
 
     # 2) Run search informed by grid similarity model
-    path = [root_node]
-    time_start = time.time()
-    found2, num_iterations2 = AStarSearch.plan(root_node, model)
-    time_end = time.time()
-    elapsed2 = time_end - time_start
-
-    stats['found2'].append(found2)
-    stats['num_iterations2'].append(num_iterations2)
-    stats['elapsed2'].append(elapsed2)
+    # path = [root_node]
+    # time_start = time.time()
+    # found2, num_iterations2 = AStarSearch.plan(root_node, model)
+    # time_end = time.time()
+    # elapsed2 = time_end - time_start
+    #
+    # stats['found2'].append(found2)
+    # stats['num_iterations2'].append(num_iterations2)
+    # stats['elapsed2'].append(elapsed2)
 
     # TODO: 3) confirm success on query example for each solution.
 
 print("=========================================== Evaluation summary ================================================")
 print("==> Uninformed search: ")
-print("Success rate at finding solutions: %.2f %%", np.mean(stats['found1']) * 100.)
+success_rate = sum(stats['found1']) / float(len(stats['found1']))
+print("Success rate at finding solutions: %.2f %%" % (success_rate * 100.))
 print("Average elapsed time per task: ", np.mean(stats['elapsed1']))
 print("Average number of required node expansions: ", np.mean(stats['num_iterations1']))
-print()
-print("==> Search informed by grid similarity: ")
-print("Success rate at finding solutions: %.2f %%", np.mean(stats['found2']) * 100.)
-print("Average elapsed time per task: ", np.mean(stats['elapsed2']))
-print("Average number of required node expansions: ", np.mean(stats['num_iterations2']))
+# print()
+# print("==> Search informed by grid similarity: ")
+# success_rate = sum(stats['found2']) / float(len(stats['found2']))
+# print("Success rate at finding solutions: %.2f %%" % (success_rate * 100.))
+# print("Average elapsed time per task: ", np.mean(stats['elapsed2']))
+# print("Average number of required node expansions: ", np.mean(stats['num_iterations2']))

@@ -3,7 +3,7 @@ import numpy as np
 VERBOSE = True
 total_node_expansion = 0
 iteration_node_expansion = 0
-MAX_NODE_EXPANSIONS = 1250000
+MAX_NODE_EXPANSIONS = 50000
 
 class Node:
 
@@ -12,16 +12,21 @@ class Node:
         self.parent_primitive = parent_primitive
         self.support_x = support_x
         self.support_y = support_y
-        self.current_grid = current_grid
         self.all_primitives = all_primitives
         self.name = name
         self.device = device
+        self.current_grid = current_grid
 
         self.h = None
         self.children = []
 
-    def apply_primitive(self, prim_func, grid):
-        return prim_func(grid)
+    def apply_primitive(self, prim_func, grid_batch):
+        transformed_batch = []
+        for grid in grid_batch:
+            tmp_grid = prim_func(grid)
+            transformed_batch.append(tmp_grid)
+
+        return transformed_batch
 
     def successors(self, model):
         global total_node_expansion
@@ -43,7 +48,7 @@ class Node:
                                                                     #  redundant
                                   transformed_grid, idx,
                                   self.all_primitives,              # TODO: also redundant?
-                                  name="%s/%i" % (self.name, prim[1]))
+                                  name="%s/%s" % (self.name, prim[1]))
 
                 h_value = child_node.calc_h(model)
                 tmp_children.append([h_value, child_node])
@@ -59,9 +64,19 @@ class Node:
 
         return self.children
 
+    def brute_force_h(self):
+        a = np.reshape(self.current_grid, [-1])
+        b = np.reshape(self.support_y, [-1])
+        found = np.all(a == b)
+
+        if found:
+            return 0.
+        else:
+            return 1.
+
     def calc_h(self, model):
         if model is None:
-            return 1.
+            return self.brute_force_h()
 
         if self.h is None:
             self.h = model.evaluate(self.current_grid, self.support_y)
@@ -70,7 +85,9 @@ class Node:
 
     # for the "in" operation
     def __eq__(self, other_node):
-        return np.all(self.current_grid == other_node.current_grid)
+        a = np.reshape(self.current_grid, [-1])
+        b = np.reshape(other_node.current_grid, [-1])
+        return np.all(a == b)
 
 class AStarSearch():
 
@@ -91,11 +108,9 @@ class AStarSearch():
             bound += 1
             iteration_node_expansion = 0
 
-        action_seq = []
-        for node_idx in range(1, len(path)):
-            action_seq.append(path[node_idx].parent_action + 1)
+        # TODO: eventually also return the actual program
 
-        return action_seq, total_node_expansion
+        return found, total_node_expansion
 
     MAX_G = 45
 
@@ -129,16 +144,12 @@ class AStarSearch():
             return False
 
         found = False
-        successors = node.successors()
-
-        children = []
-        for c in node.children:
-            children.append(c.parent_action)
+        successors = node.successors(model)
 
         for succ in successors:
             if succ not in path:
                 path.append(succ)
-                found = AStarSearch.search(path, g + 1, bound)
+                found = AStarSearch.search(path, g + 1, bound, model)
                 if found:
                     return True
 
