@@ -1,9 +1,6 @@
 import numpy as np
-import utils
-import torch
 
-VERBOSE = False
-SHOW_PREDICTIONS = False
+VERBOSE = True
 total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 1250000
@@ -104,13 +101,6 @@ class AStarSearch():
 
     @staticmethod
     def search(path, g, bound, model):
-
-        path_txt = "[ROOT"
-        if len(path) > 1:
-            for node_idx in range(1, len(path)):
-                path_txt += ",%i" % path[node_idx].parent_action
-
-        path_txt += "]"
 
         node = path[-1]
         tmp_h = 0
