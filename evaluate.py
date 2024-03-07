@@ -87,6 +87,7 @@ stats = {
     'elapsed1': [],
     'elapsed2': []
 }
+
 for batch_idx, eval_task in enumerate(eval_loader):
 
     S, Q = eval_task
@@ -121,9 +122,9 @@ print("=========================================== Evaluation summary ==========
 print("==> Uninformed search: ")
 print("Success rate at finding solutions: %.2f %%", np.mean(stats['found1']) * 100.)
 print("Average elapsed time per task: ", np.mean(stats['elapsed1']))
-print("Average number of required iterations: ", np.mean(stats['num_iterations1']))
+print("Average number of required node expansions: ", np.mean(stats['num_iterations1']))
 print()
 print("==> Search informed by grid similarity: ")
 print("Success rate at finding solutions: %.2f %%", np.mean(stats['found2']) * 100.)
 print("Average elapsed time per task: ", np.mean(stats['elapsed2']))
-print("Average number of required iterations: ", np.mean(stats['num_iterations2']))
+print("Average number of required node expansions: ", np.mean(stats['num_iterations2']))
