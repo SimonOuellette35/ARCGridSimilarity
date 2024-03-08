@@ -1,4 +1,4 @@
-from model.TransformerModel import Transformer
+from model.GridSimilarityModel import Transformer
 from ARC_gym.dataset import ARCGymDataset
 from ARC_gym.MetaDGP import MetaDGP
 import ARC_gym.primitives as primitives
@@ -18,14 +18,14 @@ import numpy as np
 device = 'cuda'
 grid_size = 5
 num_epochs = 1000
-k = 25
+k = 5
 
 EMB_DIM = 64
 NUM_HEADS = 4
 NUM_ENC_LAYERS = 5
 NUM_DEC_LAYERS = 5
 NUM_MODULES = 12
-NUM_EVAL_TASKS = 1000
+NUM_EVAL_TASKS = 10
 
 model = Transformer(input_vocab_size=11,
                     output_vocab_size=11,
@@ -41,7 +41,7 @@ model = model.double().to(device)
 #################################################### Dataset ###########################################################
 
 metadata = {
-    'num_nodes': [3, 3],
+    'num_nodes': [4, 4],
     'num_pixels': [1, 5],
     'space_dist_x': [0.2, 0.2, 0.2, 0.2, 0.2],
     'space_dist_y': [0.2, 0.2, 0.2, 0.2, 0.2]
@@ -93,7 +93,7 @@ stats = {
 def validate(task, program):
 
     for k_idx in range(task['xs'][0].shape[0]):
-        current_grid = np.reshape(task['xs'][0][k_idx].cpu().data.numpy(), [grid_size, grid_size])
+        current_grid = np.reshape(task['xs'][0][k_idx].cpu().data.numpy(), [1, grid_size, grid_size])
 
         for p in program:
             if p.parent_primitive is None:
@@ -101,7 +101,7 @@ def validate(task, program):
 
             prim = p.parent_primitive
             prim_func = prim[0]
-            current_grid = Node.apply_primitive(prim_func, [current_grid])
+            current_grid = Node.apply_primitive(prim_func, current_grid)
 
         a = np.reshape(current_grid, [-1])
         b = np.reshape(task['ys'][0][k_idx].cpu().data.numpy(), [-1])
@@ -114,6 +114,7 @@ def validate(task, program):
 
 for batch_idx, eval_task in enumerate(eval_loader):
 
+    print("Task #%s" % batch_idx)
     root_node = Node(np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
                      np.reshape(eval_task['ys'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
                      np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
@@ -121,6 +122,7 @@ for batch_idx, eval_task in enumerate(eval_loader):
                      all_primitives=primitives.get_total_set())
 
     # 1) Run uninformed search
+    print("\tUninformed search:")
     root_node1 = copy.deepcopy(root_node)
     time_start = time.time()
     found1, program1, num_iterations1 = AStarSearch.plan(root_node1, None)
@@ -135,6 +137,7 @@ for batch_idx, eval_task in enumerate(eval_loader):
     stats['elapsed1'].append(elapsed1)
 
     # 2) Run search informed by grid similarity model
+    print("\tGrid similarity-informed search:")
     root_node2 = copy.deepcopy(root_node)
     time_start = time.time()
     found2, program2, num_iterations2 = AStarSearch.plan(root_node2, model)

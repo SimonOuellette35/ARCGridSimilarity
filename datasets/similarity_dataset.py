@@ -76,14 +76,12 @@ class ARCInspiredSimilarityDataset(Dataset):
     def __getitem__(self, idx):
         start_grid, end_grid, y = self.sampleGridPatch()
 
-        flattened_start_grid = np.reshape(start_grid, [-1])
-        flattened_end_grid = np.reshape(end_grid, [-1])
-        print("flattened_X_start = ", flattened_start_grid)
+        flattened_start_grid = np.reshape(start_grid, [1, -1])
+        flattened_end_grid = np.reshape(end_grid, [1, -1])
 
-        # TODO: if the colors are from 1 to 10, rather than 0 to 9, should use 0 instead of 10 as separator token
-        x = np.concatenate((flattened_start_grid, [10], flattened_end_grid))
+        x = np.concatenate((flattened_start_grid, flattened_end_grid), axis=0)
         y = convertToSimilarity(y, self.max_transformations)
-        return [x, y]
+        return [x, np.array([y])]
 
 class ARCGymSimilarityDataset(Dataset):
 
@@ -135,7 +133,6 @@ class ARCGymSimilarityDataset(Dataset):
         flattened_X_start = np.reshape(X_start, [-1])
         flattened_X_end = np.reshape(X_end, [-1])
 
-        # TODO: if the colors are from 1 to 10, rather than 0 to 9, should use 0 instead of 10 as separator token
         X = np.concatenate((flattened_X_start, [10], flattened_X_end))
 
         y = convertToSimilarity(num_transformations, self.MAX_TRANSFORMS)

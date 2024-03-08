@@ -1,9 +1,10 @@
 import numpy as np
+import time
 
 VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
-MAX_NODE_EXPANSIONS = 50000
+MAX_NODE_EXPANSIONS = 500000
 HEURISTIC_TYPE = 'distance' # alternative: 'similarity'
 
 class Node:
@@ -35,9 +36,6 @@ class Node:
         global iteration_node_expansion
 
         if len(self.children) == 0:
-            total_node_expansion += len(self.all_primitives)
-            iteration_node_expansion += len(self.all_primitives)
-
             tmp_children = []
 
             for idx in range(len(self.all_primitives)):
@@ -53,6 +51,18 @@ class Node:
                                   name="%s/%s" % (self.name, prim[1]))
 
                 h_value = child_node.calc_h(model)
+
+                total_node_expansion += 1
+                iteration_node_expansion += 1
+
+                if h_value == 0:
+                    self.children.append(child_node)
+                    return self.children
+
+                if (time.time() - global_start_time) > 10.:
+                    print("==> TIMEOUT!")
+                    return self.children
+
                 tmp_children.append([h_value, child_node])
 
             # sort children based on their h value
@@ -80,7 +90,7 @@ class Node:
             if self.h is None:
                 # h must be the distance to the goal, while the model returns the similarity. Hence the 1 - similarity to
                 # get the value of h.
-                pred = model.evaluate(np.array(self.current_grid), self.support_y)
+                pred = model.get_similarity(np.array(self.current_grid), self.support_y)
 
                 if HEURISTIC_TYPE == 'distance':
                     self.h = pred
@@ -101,28 +111,36 @@ class Node:
 
         return self.parent_primitive[1]
 
+global_start_time = 0
+
 class AStarSearch():
 
     @staticmethod
     def plan(root, model):
         global total_node_expansion
         global iteration_node_expansion
+        global global_start_time
 
         total_node_expansion = 0
         iteration_node_expansion = 0
+
+        global_start_time = time.time()
 
         bound = 0
         path = [root]
 
         found = False
-        while not found and total_node_expansion < MAX_NODE_EXPANSIONS:
+        while not found and \
+                total_node_expansion < MAX_NODE_EXPANSIONS and \
+                time.time() - global_start_time <= 10.:
+
             found = AStarSearch.search(path, 0, bound, model)
             bound += 1
             iteration_node_expansion = 0
 
         return found, path, total_node_expansion
 
-    MAX_G = 45
+    MAX_G = 5
 
     @staticmethod
     def search(path, g, bound, model):
@@ -136,21 +154,21 @@ class AStarSearch():
 
         if g >= AStarSearch.MAX_G:
             if VERBOSE:
-                print("==> Reached maximum depth %i. Aborting this path." % AStarSearch.MAX_G)
+                print("\t==> Reached maximum depth %i. Aborting this path." % AStarSearch.MAX_G)
             return False
 
         if f_cost > bound:
             if VERBOSE:
-                print("==> Cost exceeded bound, returning...")
+                print("\t==> Cost exceeded bound, returning...")
             return False
 
         if len(path) > 1:
             if node.calc_h(model) == 0:
-                print("===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
+                print("\t===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
                 return True
 
         if total_node_expansion >= MAX_NODE_EXPANSIONS:
-            print("===> Reached total_node_expansion of %i, returning..." % MAX_NODE_EXPANSIONS)
+            print("\t===> Reached total_node_expansion of %i, returning..." % MAX_NODE_EXPANSIONS)
             return False
 
         found = False
@@ -162,6 +180,9 @@ class AStarSearch():
                 found = AStarSearch.search(path, g + 1, bound, model)
                 if found:
                     return True
+
+                if time.time() - global_start_time > 10.:
+                    return found
 
                 path.pop()
 

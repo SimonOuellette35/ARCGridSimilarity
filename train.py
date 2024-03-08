@@ -1,75 +1,70 @@
-from model.TransformerModel import Transformer
-from datasets.distance_dataset import ARCGymDistanceDataset
+from datasets.similarity_dataset import ARCInspiredSimilarityDataset, ARCGymSimilarityDataset
 import ARC_gym.primitives as primitives
-from torch.utils.data import DataLoader
-import torch
-import torch.nn.functional as F
-import torch.optim as optim
+import os
+import numpy as np
 
+os.environ["KERAS_BACKEND"] = "jax"
+
+import keras
+from keras.callbacks import ModelCheckpoint
+from model.GridSimilarityModel import SimilarityModel
 
 device = 'cuda'
-num_epochs = 500000
-lr0 = 0.0002
+LR = 0.0001
 grid_size = 5
+EMB_DIM = 128
 
-EMB_DIM = 64
-NUM_HEADS = 4
-NUM_ENC_LAYERS = 5
-NUM_DEC_LAYERS = 5
+model = SimilarityModel(embedding_dim=EMB_DIM)
+model.compile(optimizer=keras.optimizers.AdamW(learning_rate=LR))
 
-model = Transformer(input_vocab_size=11,
-                    output_vocab_size=11,
-                    dim_model=EMB_DIM,
-                    num_heads=NUM_HEADS,
-                    num_encoder_layers=NUM_ENC_LAYERS,
-                    num_decoder_layers=NUM_DEC_LAYERS,
-                    dropout_p=0.).to(device)
-
-optimizer = optim.Adam(model.parameters(), lr=lr0)
+model_checkpoint_callback = ModelCheckpoint(
+    filepath='best_similarity_model.keras',    # Path where to save the model
+    save_best_only=True,                    # Only save a model if `val_loss` has improved
+    monitor='val_loss',                     # Monitor validation loss
+    mode='min',                             # The lower the validation loss, the better
+    verbose=1                               # Log a message whenever a model is saved
+)
 
 prim_functions = primitives.get_total_set()
-train_dataset = ARCGymDistanceDataset(prim_functions, grid_size)
-train_loader = DataLoader(train_dataset,
-                          batch_size=100,
-                          shuffle=True)
+dataset = ARCInspiredSimilarityDataset(prim_functions, grid_size)
 
-for epoch in range(num_epochs):
-    epoch_train_loss = 0.
-    num_batches = 0.
+train_x = []
+train_y = []
+val_x = []
+val_y = []
 
-    for batch_idx, train_batch in enumerate(train_loader):
-        num_batches += 1.
+def convertToSimilarity(num_transformations, max_transforms):
+    return 1 - num_transformations / max_transforms
 
-        # x has shape = [batch_size, 2*dim*dim+1], where dim is the width/height of a grid.
-        # y has shape = [batch_size]
-        x_batch, y_batch = train_batch
+def generate_data_batch(N):
 
-        # SoS token for each sequence in the batch
-        sos_tokens = torch.tensor([[0]] * y_batch.shape[0], dtype=y_batch.dtype)
+    batch_x = []
+    batch_y = []
 
-        # Prepend SoS tokens to the sequences
-        y_sos_batch = torch.cat((sos_tokens, y_batch), dim=1).to(device)
+    for _ in range(N):
+        start_grid, end_grid, y = dataset.sampleGridPatch()
 
-        # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
-        y_input = y_sos_batch[:, :-1]
-        x_batch = x_batch.to(device)
-        pred = model(x_batch.long(), y_input.long())
+        flattened_start_grid = np.reshape(start_grid, [1, -1])
+        flattened_end_grid = np.reshape(end_grid, [1, -1])
 
-        # Permute pred to have batch size first again
-        pred = pred.permute(1, 0, 2)
+        x = np.concatenate((flattened_start_grid, flattened_end_grid), axis=0)
+        batch_x.append(x)
 
-        pred_flattened = torch.reshape(pred, [pred.shape[0] * pred.shape[1], pred.shape[2]])
-        y_flattened = torch.reshape(y_batch, [-1])
-        loss = F.cross_entropy(pred_flattened, y_flattened.to(device))
+        y = convertToSimilarity(y, dataset.max_transformations)
+        batch_y.append(y)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    return np.array(batch_x), np.array(batch_y)
 
-        epoch_train_loss += loss.cpu().data.numpy()
+print("Generating data...")
+train_x, train_y = generate_data_batch(100000)
+val_x, val_y = generate_data_batch(1000)
 
-    epoch_train_loss /= float(num_batches)
+print("train_x shape = ", train_x.shape)
 
-    print("Epoch #%i: %.4f" % (epoch, epoch_train_loss))
+print("Baseline validation loss:", 1. - np.average(val_y))
 
-    torch.save(model.state_dict(), 'grid_sim_model.pt')
+print("Training...")
+
+model.fit(train_x, train_y, epochs=100, batch_size=1, validation_data=(val_x, val_y),
+          callbacks=[model_checkpoint_callback])
+
