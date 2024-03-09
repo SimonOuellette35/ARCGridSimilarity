@@ -99,9 +99,9 @@ class Node:
                 if HEURISTIC_TYPE == 'distance':
                     self.h = pred
                 else:
-                    self.h = int((1. - pred) * 100)
+                    self.h = int((1. - pred) * 10) + 1
 
-            return self.h + 0.01
+            return self.h
 
     # for the "in" operation
     def __eq__(self, other_node):
