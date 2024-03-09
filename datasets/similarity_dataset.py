@@ -1,5 +1,7 @@
+import ARC_gym.primitives as primitives
 from torch.utils.data import Dataset
 import numpy as np
+import re
 import os, json
 import random
 
@@ -62,13 +64,75 @@ class ARCInspiredSimilarityDataset(Dataset):
         j = random.randint(0, grid.shape[1] - self.grid_dim - 1)
         start_grid = grid[i:i + self.grid_dim, j:j + self.grid_dim]
 
+        prim_sequence = []
+        grids_so_far = [start_grid]
         end_grid = np.copy(start_grid)
         num_transformations = random.randint(0, self.max_transformations - 1)
         for _ in range(num_transformations):
-            i = np.random.choice(np.arange(len(self.primitives)))
-            end_grid = self.primitives[i][0](end_grid)
+            valid = False
+
+            # Here we make sure that the transformation doesn't bring us back to a grid configuration we've seen so far
+            while not valid:
+                i = np.random.choice(np.arange(len(self.primitives)))
+                selected_prim = self.primitives[i]
+                tmp_grid = selected_prim[0](end_grid)
+
+                valid = True
+                for g in grids_so_far:
+                    if np.all(g == tmp_grid):
+                        valid = False
+                        break
+
+            prim_sequence.append(selected_prim[1])
+            end_grid = tmp_grid
+            grids_so_far.append(tmp_grid)
+
+        effective_prim_sequence = self.simplify_sequence(prim_sequence, grids_so_far)
+
+        # re-generate end_grid from start_grid given the effective primitives sequence.
+        end_grid, num_transformations = self.generate_from_sequence(start_grid, effective_prim_sequence)
 
         return start_grid, end_grid, num_transformations
+
+    def generate_from_sequence(self, start_grid, prim_sequence):
+        end_grid = np.copy(start_grid)
+        grids_so_far = [start_grid]
+
+        num_transformations = 0
+        for prim_name in range(prim_sequence):
+            prim_func = primitives.fetch_prim_by_name(prim_name)
+            tmp_grid = prim_func(end_grid)
+
+            valid = True
+            for g in grids_so_far:
+                if np.all(g == tmp_grid):
+                    valid = False
+                    break
+
+            if valid:
+                num_transformations += 1
+                end_grid = tmp_grid
+                grids_so_far.append(tmp_grid)
+
+        return end_grid, num_transformations
+
+    def simplify_sequence(self, prim_sequence):
+        shortcuts = primitives.get_shortcuts()
+        input_string = '/'.join(prim_sequence)
+
+        # Sort keys by length in descending order to replace longer keys first if they are substrings of shorter keys
+        for key in sorted(shortcuts.keys(), key=len, reverse=True):
+            value = shortcuts[key]
+
+            # Find all matches of the key in the input string
+            for match in re.finditer(re.escape(key), input_string):
+                start, end = match.span()
+
+                # Replace this occurrence with the value
+                input_string = input_string[:start] + value + input_string[end:]
+
+        effective_prim_sequence = input_string.split("/")
+        return effective_prim_sequence
 
     def __len__(self):
         return len(self.all_grids)
