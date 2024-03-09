@@ -4,8 +4,10 @@ import time
 VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
-MAX_NODE_EXPANSIONS = 500000
-HEURISTIC_TYPE = 'distance' # alternative: 'similarity'
+MAX_NODE_EXPANSIONS = 11000
+TIMEOUT = 600
+MAX_DEPTH = 3
+HEURISTIC_TYPE = 'similarity' # alternative: 'distance'
 
 class Node:
 
@@ -50,6 +52,7 @@ class Node:
                                   self.all_primitives,              # TODO: also redundant?
                                   name="%s/%s" % (self.name, prim[1]))
 
+
                 h_value = child_node.calc_h(model)
 
                 total_node_expansion += 1
@@ -59,7 +62,7 @@ class Node:
                     self.children.append(child_node)
                     return self.children
 
-                if (time.time() - global_start_time) > 10.:
+                if (time.time() - global_start_time) > TIMEOUT:
                     print("==> TIMEOUT!")
                     return self.children
 
@@ -82,7 +85,8 @@ class Node:
         found = np.all(a == b)
 
         if found:
-            return 0
+            self.h = 0
+            return self.h
         else:
             if model is None:
                 return 1
@@ -97,7 +101,7 @@ class Node:
                 else:
                     self.h = int((1. - pred) * 100)
 
-            return self.h
+            return self.h + 0.01
 
     # for the "in" operation
     def __eq__(self, other_node):
@@ -126,21 +130,19 @@ class AStarSearch():
 
         global_start_time = time.time()
 
-        bound = 0
+        bound = 100
         path = [root]
 
         found = False
         while not found and \
                 total_node_expansion < MAX_NODE_EXPANSIONS and \
-                time.time() - global_start_time <= 10.:
+                time.time() - global_start_time <= TIMEOUT:
 
             found = AStarSearch.search(path, 0, bound, model)
             bound += 1
             iteration_node_expansion = 0
 
         return found, path, total_node_expansion
-
-    MAX_G = 5
 
     @staticmethod
     def search(path, g, bound, model):
@@ -152,20 +154,20 @@ class AStarSearch():
 
         f_cost = g + tmp_h
 
-        if g >= AStarSearch.MAX_G:
+        if len(path) > 1:
+            if node.calc_h(model) == 0:
+                print("\t===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
+                return True
+
+        if g >= MAX_DEPTH:
             if VERBOSE:
-                print("\t==> Reached maximum depth %i. Aborting this path." % AStarSearch.MAX_G)
+                print("\t==> Reached maximum depth %i. Aborting this path." % MAX_DEPTH)
             return False
 
         if f_cost > bound:
             if VERBOSE:
                 print("\t==> Cost exceeded bound, returning...")
             return False
-
-        if len(path) > 1:
-            if node.calc_h(model) == 0:
-                print("\t===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
-                return True
 
         if total_node_expansion >= MAX_NODE_EXPANSIONS:
             print("\t===> Reached total_node_expansion of %i, returning..." % MAX_NODE_EXPANSIONS)
@@ -181,7 +183,7 @@ class AStarSearch():
                 if found:
                     return True
 
-                if time.time() - global_start_time > 10.:
+                if time.time() - global_start_time > TIMEOUT:
                     return found
 
                 path.pop()

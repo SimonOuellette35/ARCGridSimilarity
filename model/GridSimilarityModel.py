@@ -38,7 +38,7 @@ class SimilarityModel(keras.Model):
             keras.layers.Dense(embedding_dim),
         ])
 
-    def call(self, x, training=False):
+    def call(self, x):
         if len(x.shape) == 3 and x.shape[0] == 1:
             # Training input format, shape=(1, 2, max_length)
             x = x[0]
@@ -58,9 +58,19 @@ class SimilarityModel(keras.Model):
         '''
         takes as input 2 grids, returns similarity metric
         '''
-        # Expected input format: 2, max_length
-        x = np.concatenate((grid1, grid2), dim = 0)
+        batch_sim = 0.
+        grid1 = np.reshape(grid1, [grid1.shape[0], grid1.shape[1] * grid1.shape[2]])
+        grid2 = np.reshape(grid2, [grid2.shape[0], grid2.shape[1] * grid2.shape[2]])
+        for idx in range(grid1.shape[0]):
+            # Expected input format: 2, max_length
+            a = np.reshape(grid1[0], [1, -1])
+            b = np.reshape(grid2[0], [1, -1])
+            x = np.concatenate((a,b), axis=0)
 
-        pred = self.call(x)
+            pred = self.call(x)
+            similarity = ops.sum(pred[0] * pred[1])
 
-        return pred
+            batch_sim += similarity
+
+        return batch_sim / float(grid1.shape[0])
+
