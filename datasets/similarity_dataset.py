@@ -87,10 +87,14 @@ class ARCInspiredSimilarityDataset(Dataset):
             end_grid = tmp_grid
             grids_so_far.append(tmp_grid)
 
-        effective_prim_sequence = self.simplify_sequence(prim_sequence, grids_so_far)
+        if len(prim_sequence) > 0:
+            effective_prim_sequence = self.simplify_sequence(prim_sequence)
+        else:
+            effective_prim_sequence = prim_sequence
 
         # re-generate end_grid from start_grid given the effective primitives sequence.
-        end_grid, num_transformations = self.generate_from_sequence(start_grid, effective_prim_sequence)
+        if len(effective_prim_sequence) > 0:
+            end_grid, num_transformations = self.generate_from_sequence(start_grid, effective_prim_sequence)
 
         return start_grid, end_grid, num_transformations
 
@@ -99,7 +103,7 @@ class ARCInspiredSimilarityDataset(Dataset):
         grids_so_far = [start_grid]
 
         num_transformations = 0
-        for prim_name in range(prim_sequence):
+        for prim_name in prim_sequence:
             prim_func = primitives.fetch_prim_by_name(prim_name)
             tmp_grid = prim_func(end_grid)
 
@@ -116,22 +120,39 @@ class ARCInspiredSimilarityDataset(Dataset):
 
         return end_grid, num_transformations
 
+    # TODO: BUG: this function fails by mangling the primitive names when there are more than one compressions to make.
+    import re
+
     def simplify_sequence(self, prim_sequence):
         shortcuts = primitives.get_shortcuts()
         input_string = '/'.join(prim_sequence)
 
-        # Sort keys by length in descending order to replace longer keys first if they are substrings of shorter keys
-        for key in sorted(shortcuts.keys(), key=len, reverse=True):
-            value = shortcuts[key]
-
-            # Find all matches of the key in the input string
+        # Find all matches for all keys and keep track of them
+        matches = []
+        for key, value in shortcuts.items():
             for match in re.finditer(re.escape(key), input_string):
                 start, end = match.span()
+                matches.append((start, end, value))
 
-                # Replace this occurrence with the value
-                input_string = input_string[:start] + value + input_string[end:]
+        # Sort matches by start position; in case of a tie, longer match wins
+        matches.sort(key=lambda x: (x[0], -x[1]))
 
-        effective_prim_sequence = input_string.split("/")
+        # Reconstruct the string by replacing as we go, ensuring not to double-replace any part
+        result = []
+        last_end = 0
+        for start, end, replacement in matches:
+            if start >= last_end:
+                # Add the part of input_string before the current match
+                result.append(input_string[last_end:start])
+                # Replace the match
+                result.append(replacement)
+                last_end = end
+
+        # Add any remaining part of input_string after the last match
+        result.append(input_string[last_end:])
+
+        # Join all parts together
+        effective_prim_sequence = ''.join(result).split("/")
         return effective_prim_sequence
 
     def __len__(self):

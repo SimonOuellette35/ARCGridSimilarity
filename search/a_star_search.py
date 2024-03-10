@@ -4,9 +4,9 @@ import time
 VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
-MAX_NODE_EXPANSIONS = 11000
-TIMEOUT = 600
-MAX_DEPTH = 3
+MAX_NODE_EXPANSIONS = 250000000
+TIMEOUT = 6
+MAX_DEPTH = 4
 HEURISTIC_TYPE = 'similarity' # alternative: 'distance'
 
 class Node:
