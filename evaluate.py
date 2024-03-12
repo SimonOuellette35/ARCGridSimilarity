@@ -41,37 +41,74 @@ import keras
 # - learned similarity: N/A
 # - pixel-wise similarity: 14 %
 
-# num_nodes = [6, 6], TIMEOUT = 25
-# - brute force: %
+# num_nodes = [6, 6], TIMEOUT = 30
+# - brute force: 22%% (53187.54 node expansions)
 # - learned similarity: N/A
-# - pixel-wise similarity: %
+# - pixel-wise similarity: 23% (16519.34 node expansions)
 
 # num_nodes = [6, 6], TIMEOUT = 60
-# - brute force: %
+# - brute force: 29% (56696.75 expansions)
 # - learned similarity: N/A
-# - pixel-wise similarity: %
+# - pixel-wise similarity: 29% (16698.72 expansions)
 
-# num_nodes = [7, 7], TIMEOUT = 5
-# - brute force: %
+# num_nodes = [7, 7], TIMEOUT = 30
+# - brute force: 5% (59548.8 expansions)
 # - learned similarity: N/A
-# - pixel-wise similarity: %
+# - pixel-wise similarity: 19% (12874.05 expansions)
+
+# num_nodes = [7, 7], TIMEOUT = 60
+# - brute force: 7% (151,811.14 expansions)
+# - learned similarity: N/A
+# - pixel-wise similarity: 23% (56,649.52 expansions)
+
+# num_nodes = [7, 7], TIMEOUT = 120
+# - brute force: 18% (421,411.5 expansions)
+# - learned similarity: N/A
+# - pixel-wise similarity: 36% (154,192.69 expansions)
+
+# num_nodes = [7, 7], TIMEOUT = 240
+# - brute force: 19% (545,883.68 expansions)
+# - learned similarity: N/A
+# - pixel-wise similarity: 23% (176,275.78 expansions)
+
+# 2nd attempt (to test how much randomness there is):
+# num_nodes = [7, 7], TIMEOUT = 240
+# - brute force: % ( expansions)
+# - learned similarity: N/A
+# - pixel-wise similarity: % ( expansions)
+
+# num_nodes = [8, 8], TIMEOUT = 120
+# - brute force: % ( expansions)
+# - learned similarity: N/A
+# - pixel-wise similarity: % ( expansions)
+
 
 # TODO - 1) [TO RUN]: run "success rate" experiments on a time budget for [6, 6], more?
-#           a) try with [6, 6], at different timeouts
-#           b) try with [7, 7[, at different timeouts -- do tasks still make some kind of sense at [7, 7]? redundancy?
-#           c) find what number of nodes I can use for a timeout of 864 (should take 2 days to run)
+#           a) try with [7, 7[, at different timeouts -- do tasks still make some kind of sense at [7, 7]? redundancy?
+#           b) why is it that sometimes the tasks fail without saying "timeout"?
+#           c) why does the advantage of pixel-wise similarity disappear as we increase the timeout?
+#           d) find what number of nodes I can use for a timeout of 864 (should take 2 days to run)
+#           e) what is the maximum graph depth at which I can get 100% within the reasonable allocated time for tasks?
+
 # TODO - 2) [TO CODE]: would a very simple feed-forward network learn pixel-wise similarity, and be faster due
 #  to GPU parallelization?
+
 # TODO - 3) [TO RUN]: re-run experiments with DL model trained on ARCInspiredSimilarityDataset that checks for redundancies.
 #              -- visualize and validate newly generated data...
+
 # TODO - 4) [TO CODE]: re-run experiments with DL model trained on random grids with checks for redundancies.
 #              -- visualize and validate newly generated data...
+
 # TODO - 5) [TO TRACE]: check that given my current implementation, if all children leads to a worse h than the parent, we backtrack
 #  (normally A* should do this, make sure my implementation does as well)
+
 # TODO - 6) [TO CODE]: evaluate grid similarity model (validation loss) using the get_similarity method. Does the error rate
 #  increase as the ground truth similarity gets smaller?
+
 # TODO - 7) [TO TRACE]: What is the impact of scaling h by 10 for informed search?
+
 # TODO - 8) [TO TEST]: Iterative deepening doesn't seem to work? Goes all the way to MAX_G right away?
+
 # TODO - 9) [TO DESIGN]: a priori model: flat list of probs first, then sequenced/iterative probs.
 
 # ===================================================================================================================
@@ -98,7 +135,7 @@ k = 10
 grid_size = 5
 
 metadata = {
-    'num_nodes': [6, 6],
+    'num_nodes': [7, 7],
     'num_pixels': [1, 5],
     'space_dist_x': [0.2, 0.2, 0.2, 0.2, 0.2],
     'space_dist_y': [0.2, 0.2, 0.2, 0.2, 0.2]
@@ -195,9 +232,11 @@ for batch_idx, eval_task in enumerate(eval_loader):
 
     #viz.draw_batch(eval_task, 4)
 
-    root_node = Node(np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
-                     np.reshape(eval_task['ys'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
-                     np.reshape(eval_task['xs'][0].cpu().data.numpy(), [k, grid_size, grid_size]),
+    support_x = eval_task['xs'][0].cpu().data.numpy()
+    support_y = eval_task['ys'][0].cpu().data.numpy()
+    root_node = Node(np.reshape(support_x, [k, grid_size, grid_size]),
+                     np.reshape(support_y, [k, grid_size, grid_size]),
+                     np.reshape(support_x, [k, grid_size, grid_size]),
                      parent_primitive=None,
                      all_primitives=primitives.get_total_set())
 
