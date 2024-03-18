@@ -53,16 +53,22 @@ class ARCInspiredSimilarityDataset(Dataset):
             fpath = os.path.join(self.base_dir, fname)
             self.all_grids.extend(self.arc_to_numpy(fpath))
 
-    def sampleGridPatch(self):
-
+    def sample_start_grid(self):
         min_side = 0
         while min_side < self.grid_dim + 1:
             i = random.randint(0, len(self.all_grids) - 1)
             grid = self.all_grids[i]
             min_side = min(grid.shape[0], grid.shape[1])
+
         i = random.randint(0, grid.shape[0] - self.grid_dim - 1)
         j = random.randint(0, grid.shape[1] - self.grid_dim - 1)
         start_grid = grid[i:i + self.grid_dim, j:j + self.grid_dim]
+
+        return start_grid
+
+    def sampleGridPatch(self):
+
+        start_grid = self.sample_start_grid()
 
         prim_sequence = []
         grids_so_far = [start_grid]

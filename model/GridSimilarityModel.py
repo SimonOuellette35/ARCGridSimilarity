@@ -85,13 +85,17 @@ class SimilarityModel(keras.Model):
 
         for idx in range(grid1.shape[0]):
             # Expected input format: 2, max_length
-            a = np.reshape(grid1[0], [1, -1])
-            b = np.reshape(grid2[0], [1, -1])
+            a = np.reshape(grid1[idx], [1, -1])
+            b = np.reshape(grid2[idx], [1, -1])
             x = np.concatenate((a,b), axis=0)
 
             pred = self.call(x)
             similarity = ops.sum(pred[0] * pred[1])
 
             similarities.append(similarity)
+
+            # print("grid1 = ", grid1[idx])
+            # print("grid2 = ", grid2[idx])
+            # print("==> sim = ", similarity)
 
         return np.median(similarities)

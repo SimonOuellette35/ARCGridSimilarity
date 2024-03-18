@@ -6,7 +6,6 @@ total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 250000000
 TIMEOUT = 864
-MAX_DEPTH = 4
 HEURISTIC_TYPE = 'similarity'   # alternative: 'distance'
 
 class Node:
@@ -42,9 +41,19 @@ class Node:
 
             for idx in range(len(self.all_primitives)):
 
+                tmp_grid = np.copy(self.current_grid)
                 prim = self.all_primitives[idx]
                 prim_func = prim[0]
-                transformed_grid = self.apply_primitive(prim_func, self.current_grid)
+                transformed_grid = self.apply_primitive(prim_func, tmp_grid)
+
+                total_node_expansion += 1
+                iteration_node_expansion += 1
+
+                # a = np.reshape(tmp_grid, [-1])
+                # b = np.reshape(transformed_grid, [-1])
+                # if np.all(a == b):
+                #     # don't bother with NOOPs
+                #     continue
 
                 child_node = Node(self.support_x, self.support_y,   # TODO: copies of the support set in each node is
                                                                     #  redundant
@@ -52,11 +61,9 @@ class Node:
                                   self.all_primitives,              # TODO: also redundant?
                                   name="%s/%s" % (self.name, prim[1]))
 
-
                 h_value = child_node.calc_h(model)
 
-                total_node_expansion += 1
-                iteration_node_expansion += 1
+                print("\tchild: %s has h value %.2f" % (prim[1], h_value))
 
                 if h_value == 0:
                     self.children.append(child_node)
@@ -71,10 +78,13 @@ class Node:
             # sort children based on their h value
             children = sorted(tmp_children, key=lambda x: int(x[0]))
 
+            order = ""
             child_nodes = []
             for c in children:
                 child_nodes.append(c[1])
+                order += "%s/" % c[1].parent_primitive[1]
 
+            print("==> h ordering: ", order)
             self.children = child_nodes
 
         return self.children
@@ -122,8 +132,10 @@ global_start_time = 0
 
 class AStarSearch():
 
-    @staticmethod
-    def plan(root, model):
+    def __init__(self, max_depth):
+        self.max_depth = max_depth
+
+    def plan(self, root, model):
         global total_node_expansion
         global iteration_node_expansion
         global global_start_time
@@ -133,7 +145,7 @@ class AStarSearch():
 
         global_start_time = time.time()
 
-        bound = MAX_DEPTH
+        bound = self.max_depth
         path = [root]
 
         found = False
@@ -141,30 +153,31 @@ class AStarSearch():
                 total_node_expansion < MAX_NODE_EXPANSIONS and \
                 time.time() - global_start_time <= TIMEOUT:
 
-            found = AStarSearch.search(path, 0, bound, model)
+            found = self.search(path, 0, bound, model)
             bound += 1
             iteration_node_expansion = 0
 
         return found, path, total_node_expansion
 
-    @staticmethod
-    def search(path, g, bound, model):
+    def search(self, path, g, bound, model):
 
         node = path[-1]
         tmp_h = 0
         if len(path) > 1:
             tmp_h = node.calc_h(model)
 
+        print("==> Search(%s)" % path)
         f_cost = g + tmp_h
+        print("f = ", f_cost)
 
         if len(path) > 1:
             if node.calc_h(model) == 0:
                 print("\t===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
                 return True
 
-        if g >= MAX_DEPTH:
+        if g >= self.max_depth:
             if VERBOSE:
-                print("\t==> Reached maximum depth %i. Aborting this path." % MAX_DEPTH)
+                print("\t==> Reached maximum depth %i. Aborting this path." % self.max_depth)
             return False
 
         if f_cost > bound:
@@ -182,7 +195,7 @@ class AStarSearch():
         for succ in successors:
             if succ not in path:
                 path.append(succ)
-                found = AStarSearch.search(path, g + 1, bound, model)
+                found = self.search(path, g + 1, bound, model)
                 if found:
                     return True
 
