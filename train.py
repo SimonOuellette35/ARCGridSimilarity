@@ -2,6 +2,8 @@ from datasets.similarity_dataset import ARCInspiredSimilarityDataset, ARCGymSimi
 import ARC_gym.primitives as primitives
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+import ARC_gym.utils.visualization as viz
 
 os.environ["KERAS_BACKEND"] = "jax"
 
@@ -40,9 +42,10 @@ def generate_data_batch(N):
 
     batch_x = []
     batch_y = []
+    batch_counts = []
 
     for _ in range(N):
-        start_grid, end_grid, y = dataset.sampleGridPatch()
+        start_grid, end_grid, y, prim_sequence = dataset.sampleGridPatch()
 
         flattened_start_grid = np.reshape(start_grid, [1, -1])
         flattened_end_grid = np.reshape(end_grid, [1, -1])
@@ -50,14 +53,29 @@ def generate_data_batch(N):
         x = np.concatenate((flattened_start_grid, flattened_end_grid), axis=0)
         batch_x.append(x)
 
-        y = convertToSimilarity(y, dataset.max_transformations)
-        batch_y.append(y)
+        batch_counts.append(y)
+        sim_y = convertToSimilarity(y, dataset.max_transformations)
+        batch_y.append(sim_y)
 
-    return np.array(batch_x), np.array(batch_y)
+        # print("======================================================================================================")
+        # print("# of transformations = %i, similarity = %.4f" % (y, sim_y))
+        # print("Primitive sequence = ", prim_sequence)
+        # viz.draw_grid_pair(start_grid, end_grid)
+
+    return np.array(batch_x), np.array(batch_y), np.array(batch_counts)
 
 print("Generating data...")
-train_x, train_y = generate_data_batch(100000)
-val_x, val_y = generate_data_batch(1000)
+train_x, train_y, train_counts = generate_data_batch(50000)
+
+for n in range(9):
+    c = 0
+    for tmp_y in train_counts:
+        if tmp_y == n:
+            c+=1
+
+    print("Number of occurences of %i: %i" % (n, c))
+
+val_x, val_y, _ = generate_data_batch(1000)
 
 print("train_x shape = ", train_x.shape)
 

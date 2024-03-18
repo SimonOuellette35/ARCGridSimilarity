@@ -1,5 +1,6 @@
 # Written by François Chollet
 # evaluate(grid1, grid2) function added by Simon Ouellette
+# Hyperparameter tuning by Simon Ouellette
 # 2024-03-07
 
 import keras
@@ -20,19 +21,39 @@ import numpy as np
 class SimilarityModel(keras.Model):
     def __init__(self, embedding_dim=128, **kwargs):
         super().__init__(**kwargs)
+        inter_dim = 128
+        n_heads = 4
+        act_fn = 'gelu'
         self.positional_embedding = keras_nlp.layers.TokenAndPositionEmbedding(
             vocabulary_size=15,
             sequence_length=1024,
-            embedding_dim=512,
+            embedding_dim=128,
         )
         self.backbone = keras.Sequential([
             keras_nlp.layers.TransformerEncoder(
-                intermediate_dim=128,
-                num_heads=2,
+                intermediate_dim=inter_dim,
+                num_heads=n_heads,
+                activation=act_fn
             ),
             keras_nlp.layers.TransformerEncoder(
-                intermediate_dim=128,
-                num_heads=2,
+                intermediate_dim=inter_dim,
+                num_heads=n_heads,
+                activation=act_fn
+            ),
+            keras_nlp.layers.TransformerEncoder(
+                intermediate_dim=inter_dim,
+                num_heads=n_heads,
+                activation=act_fn
+            ),
+            keras_nlp.layers.TransformerEncoder(
+                intermediate_dim=inter_dim,
+                num_heads=n_heads,
+                activation=act_fn
+            ),
+            keras_nlp.layers.TransformerEncoder(
+                intermediate_dim=inter_dim,
+                num_heads=n_heads,
+                activation=act_fn
             ),
             keras.layers.GlobalMaxPooling1D(),
             keras.layers.Dense(embedding_dim),
@@ -58,9 +79,10 @@ class SimilarityModel(keras.Model):
         '''
         takes as input 2 grids, returns similarity metric
         '''
-        batch_sim = 0.
+        similarities = []
         grid1 = np.reshape(grid1, [grid1.shape[0], grid1.shape[1] * grid1.shape[2]])
         grid2 = np.reshape(grid2, [grid2.shape[0], grid2.shape[1] * grid2.shape[2]])
+
         for idx in range(grid1.shape[0]):
             # Expected input format: 2, max_length
             a = np.reshape(grid1[0], [1, -1])
@@ -70,7 +92,6 @@ class SimilarityModel(keras.Model):
             pred = self.call(x)
             similarity = ops.sum(pred[0] * pred[1])
 
-            batch_sim += similarity
+            similarities.append(similarity)
 
-        return batch_sim / float(grid1.shape[0])
-
+        return np.median(similarities)

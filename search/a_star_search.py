@@ -5,9 +5,9 @@ VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 250000000
-TIMEOUT = 6
+TIMEOUT = 864
 MAX_DEPTH = 4
-HEURISTIC_TYPE = 'similarity' # alternative: 'distance'
+HEURISTIC_TYPE = 'similarity'   # alternative: 'distance'
 
 class Node:
 
@@ -80,6 +80,9 @@ class Node:
         return self.children
 
     def calc_h(self, model):
+        if self.h is not None:
+            return self.h
+
         a = np.reshape(self.current_grid, [-1])
         b = np.reshape(self.support_y, [-1])
         found = np.all(a == b)
@@ -130,7 +133,7 @@ class AStarSearch():
 
         global_start_time = time.time()
 
-        bound = 100
+        bound = MAX_DEPTH
         path = [root]
 
         found = False

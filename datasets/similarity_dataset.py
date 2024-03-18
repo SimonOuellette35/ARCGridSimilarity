@@ -67,7 +67,7 @@ class ARCInspiredSimilarityDataset(Dataset):
         prim_sequence = []
         grids_so_far = [start_grid]
         end_grid = np.copy(start_grid)
-        num_transformations = random.randint(0, self.max_transformations - 1)
+        num_transformations = random.randint(0, self.max_transformations)
         for _ in range(num_transformations):
             valid = False
 
@@ -77,14 +77,25 @@ class ARCInspiredSimilarityDataset(Dataset):
                 selected_prim = self.primitives[i]
                 tmp_grid = selected_prim[0](end_grid)
 
+                # No point in multiple rotations in a single task: redundant.
                 valid = True
+                if "rotate" in selected_prim[1]:
+                    for last_idx in range(len(prim_sequence)):
+                        last_prim = prim_sequence[last_idx]
+                        if "rotate" in last_prim:
+                            valid = False
+                            break
+
+                if not valid:
+                    continue
+
                 for g in grids_so_far:
                     if np.all(g == tmp_grid):
                         valid = False
                         break
 
             prim_sequence.append(selected_prim[1])
-            end_grid = tmp_grid
+            end_grid = np.copy(tmp_grid)
             grids_so_far.append(tmp_grid)
 
         if len(prim_sequence) > 0:
@@ -96,7 +107,7 @@ class ARCInspiredSimilarityDataset(Dataset):
         if len(effective_prim_sequence) > 0:
             end_grid, num_transformations = self.generate_from_sequence(start_grid, effective_prim_sequence)
 
-        return start_grid, end_grid, num_transformations
+        return start_grid, end_grid, num_transformations, effective_prim_sequence
 
     def generate_from_sequence(self, start_grid, prim_sequence):
         end_grid = np.copy(start_grid)
@@ -120,9 +131,6 @@ class ARCInspiredSimilarityDataset(Dataset):
 
         return end_grid, num_transformations
 
-    # TODO: BUG: this function fails by mangling the primitive names when there are more than one compressions to make.
-    import re
-
     def simplify_sequence(self, prim_sequence):
         shortcuts = primitives.get_shortcuts()
         input_string = '/'.join(prim_sequence)
@@ -144,6 +152,7 @@ class ARCInspiredSimilarityDataset(Dataset):
             if start >= last_end:
                 # Add the part of input_string before the current match
                 result.append(input_string[last_end:start])
+
                 # Replace the match
                 result.append(replacement)
                 last_end = end
