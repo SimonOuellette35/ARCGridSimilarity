@@ -5,8 +5,9 @@ import ARC_gym.primitives as primitives
 from ARC_gym.utils.batching import make_gridcoder_batch
 from torch.utils.data import DataLoader
 from search.a_star_search import Node, AStarSearch
+from search.a_star_search_batched import Node as BatchedNode
+from search.a_star_search_batched import AStarSearch as BatchedAStarSearch
 from model.heuristic import ManualHeuristic
-import time
 import copy
 import numpy as np
 import keras
@@ -33,9 +34,10 @@ NUM_EVAL_TASKS = 100
 MAX_GRAPHS = 5000
 k = 10
 grid_size = 5
+MAX_DEPTH = 5
 
 metadata = {
-    'num_nodes': [5, 5],
+    'num_nodes': [6, 6],
     'num_pixels': [1, 5],
     'space_dist_x': [0.2, 0.2, 0.2, 0.2, 0.2],
     'space_dist_y': [0.2, 0.2, 0.2, 0.2, 0.2]
@@ -114,12 +116,20 @@ def validate(task, program):
     # TODO: also validate on the query set
     return True
 
-def search(root_node, model):
+batched_planning = BatchedAStarSearch(max_depth=MAX_DEPTH)
+planning = AStarSearch(max_depth=MAX_DEPTH)
+
+def search(root_node, tmp_model):
     tmp_root_node = copy.deepcopy(root_node)
-    time_start = time.time()
-    found, program, num_iterations = AStarSearch.plan(tmp_root_node, model)
-    time_end = time.time()
-    elapsed = time_end - time_start
+    found, program, num_iterations = planning.plan(tmp_root_node, tmp_model)
+
+    success = validate(eval_task, program)
+
+    return found, success, num_iterations
+
+def batched_search(root_node, tmp_model):
+    tmp_root_node = copy.deepcopy(root_node)
+    found, program, num_iterations = batched_planning.plan(tmp_root_node, tmp_model)
 
     success = validate(eval_task, program)
 
@@ -140,6 +150,12 @@ for batch_idx, eval_task in enumerate(eval_loader):
                      parent_primitive=None,
                      all_primitives=primitives.get_total_set())
 
+    batched_node = BatchedNode(np.reshape(support_x, [k, grid_size, grid_size]),
+                     np.reshape(support_y, [k, grid_size, grid_size]),
+                     np.reshape(support_x, [k, grid_size, grid_size]),
+                     parent_primitive=None,
+                     all_primitives=primitives.get_total_set())
+
     # 1) Run uninformed search
     print("\tUninformed search:")
     found1, success1, num_iterations1 = search(root_node, None)
@@ -152,7 +168,7 @@ for batch_idx, eval_task in enumerate(eval_loader):
 
     # 2) Run search informed by grid similarity model
     print("\tGrid similarity-informed search:")
-    found2, success2, num_iterations2 = search(root_node, model)
+    found2, success2, num_iterations2 = batched_search(batched_node, model)
 
     if success2:
         stats['num_iterations2'].append(num_iterations2)

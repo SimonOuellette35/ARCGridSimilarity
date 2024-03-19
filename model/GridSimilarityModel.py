@@ -99,3 +99,23 @@ class SimilarityModel(keras.Model):
             # print("==> sim = ", similarity)
 
         return np.median(similarities)
+
+    # X batch are the intermediate grids
+    # Y batch are the expected output grids
+    # Must return for each element in the batch the distance between its X grid and Y grid.
+    def get_batched_similarity(self, x_batch, y_batch):
+
+        x_batch = np.reshape(x_batch, [len(x_batch), -1])
+        y_batch = np.reshape(y_batch, [len(y_batch), -1])
+        stacked_grids = np.concatenate((x_batch, y_batch), axis=0)
+
+        stacked_embeds = self.call(stacked_grids)
+
+
+        # Now we get the pairwise product sum for the X vs Y embeddings.
+        stack_x = stacked_embeds[:x_batch.shape[0]]
+        stack_y = stacked_embeds[x_batch.shape[0]:]
+
+        similarities = ops.sum(stack_x * stack_y, axis=-1)
+
+        return similarities

@@ -6,7 +6,6 @@ total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 250000000
 TIMEOUT = 864
-HEURISTIC_TYPE = 'similarity'   # alternative: 'distance'
 
 class Node:
 
@@ -22,6 +21,11 @@ class Node:
 
         self.h = None
         self.children = []
+
+        self.batched_target_grids = []
+        for _ in range(len(self.all_primitives)):
+            for idx in range(support_y.shape[0]):
+                self.batched_target_grids.append(support_y[idx])
 
     @staticmethod
     def apply_primitive(prim_func, grid_batch):
@@ -39,39 +43,54 @@ class Node:
         if len(self.children) == 0:
             tmp_children = []
 
+            intermediate_grids = []
             for idx in range(len(self.all_primitives)):
 
                 tmp_grid = np.copy(self.current_grid)
                 prim = self.all_primitives[idx]
                 prim_func = prim[0]
-                transformed_grid = self.apply_primitive(prim_func, tmp_grid)
+                transformed_grids = self.apply_primitive(prim_func, tmp_grid)
 
                 total_node_expansion += 1
                 iteration_node_expansion += 1
 
-                # a = np.reshape(tmp_grid, [-1])
-                # b = np.reshape(transformed_grid, [-1])
-                # if np.all(a == b):
-                #     # don't bother with NOOPs
-                #     continue
-
                 child_node = Node(self.support_x, self.support_y,   # TODO: copies of the support set in each node is
                                                                     #  redundant
-                                  transformed_grid, prim,
+                                  transformed_grids, prim,
                                   self.all_primitives,              # TODO: also redundant?
                                   name="%s/%s" % (self.name, prim[1]))
 
-                h_value = child_node.calc_h(model)
+                # first look for exact matches...
+                a = np.reshape(transformed_grids, [-1])
+                b = np.reshape(self.support_y, [-1])
+                found = np.all(a == b)
 
-                if h_value == 0:
+                if found:
+                    child_node.h = 0
                     self.children.append(child_node)
                     return self.children
 
-                if (time.time() - global_start_time) > TIMEOUT:
-                    print("==> TIMEOUT!")
-                    return self.children
+                for tg in transformed_grids:
+                    intermediate_grids.append(tg)
 
-                tmp_children.append([h_value, child_node])
+                tmp_children.append([np.inf, child_node])
+
+            sim_preds = model.get_batched_similarity(intermediate_grids, self.batched_target_grids)
+
+            k = self.support_x.shape[0]
+            n = len(self.all_primitives)
+            median_sims_per_prim = np.median(np.reshape(sim_preds, [n, k]), axis=-1)
+
+            h_per_prim = (1. - median_sims_per_prim) * 10
+
+            for prim_idx, h_val in enumerate(h_per_prim):
+                h = int(h_val) + 1
+                tmp_children[prim_idx][1].h = h
+                tmp_children[prim_idx][0] = h
+
+            if (time.time() - global_start_time) > TIMEOUT:
+                print("==> TIMEOUT!")
+                return self.children
 
             # sort children based on their h value
             children = sorted(tmp_children, key=lambda x: int(x[0]))
@@ -83,33 +102,6 @@ class Node:
             self.children = child_nodes
 
         return self.children
-
-    def calc_h(self, model):
-        if self.h is not None:
-            return self.h
-
-        a = np.reshape(self.current_grid, [-1])
-        b = np.reshape(self.support_y, [-1])
-        found = np.all(a == b)
-
-        if found:
-            self.h = 0
-            return self.h
-        else:
-            if model is None:
-                return 1
-
-            if self.h is None:
-                # h must be the distance to the goal, while the model returns the similarity. Hence the 1 - similarity to
-                # get the value of h.
-                pred = model.get_similarity(np.array(self.current_grid), self.support_y)
-
-                if HEURISTIC_TYPE == 'distance':
-                    self.h = pred
-                else:
-                    self.h = int((1. - pred) * 10) + 1
-
-            return self.h
 
     # for the "in" operation
     def __eq__(self, other_node):
@@ -159,12 +151,12 @@ class AStarSearch():
         node = path[-1]
         tmp_h = 0
         if len(path) > 1:
-            tmp_h = node.calc_h(model)
+            tmp_h = node.h
 
         f_cost = g + tmp_h
 
         if len(path) > 1:
-            if node.calc_h(model) == 0:
+            if node.h == 0:
                 print("\t===> FOUND GOAL after expanding %i nodes" % total_node_expansion)
                 return True
 
