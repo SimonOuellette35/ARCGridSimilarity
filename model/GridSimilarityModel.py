@@ -23,18 +23,13 @@ class SimilarityModel(keras.Model):
         super().__init__(**kwargs)
         inter_dim = 128
         n_heads = 4
-        act_fn = 'gelu'
+        act_fn = 'relu'
         self.positional_embedding = keras_nlp.layers.TokenAndPositionEmbedding(
             vocabulary_size=15,
             sequence_length=1024,
             embedding_dim=128,
         )
         self.backbone = keras.Sequential([
-            keras_nlp.layers.TransformerEncoder(
-                intermediate_dim=inter_dim,
-                num_heads=n_heads,
-                activation=act_fn
-            ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
@@ -105,12 +100,9 @@ class SimilarityModel(keras.Model):
     # Must return for each element in the batch the distance between its X grid and Y grid.
     def get_batched_similarity(self, x_batch, y_batch):
 
-        x_batch = np.reshape(x_batch, [len(x_batch), -1])
-        y_batch = np.reshape(y_batch, [len(y_batch), -1])
         stacked_grids = np.concatenate((x_batch, y_batch), axis=0)
 
         stacked_embeds = self.call(stacked_grids)
-
 
         # Now we get the pairwise product sum for the X vs Y embeddings.
         stack_x = stacked_embeds[:x_batch.shape[0]]

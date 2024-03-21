@@ -15,9 +15,10 @@ device = 'cuda'
 LR = 0.0001
 grid_size = 5
 EMB_DIM = 128
+DECAY = 0.004
 
 model = SimilarityModel(embedding_dim=EMB_DIM)
-model.compile(optimizer=keras.optimizers.AdamW(learning_rate=LR))
+model.compile(optimizer=keras.optimizers.AdamW(learning_rate=LR, weight_decay=DECAY))
 
 model_checkpoint_callback = ModelCheckpoint(
     filepath='best_similarity_model.keras',    # Path where to save the model
@@ -65,7 +66,7 @@ def generate_data_batch(N):
     return np.array(batch_x), np.array(batch_y), np.array(batch_counts)
 
 print("Generating data...")
-train_x, train_y, train_counts = generate_data_batch(50000)
+train_x, train_y, train_counts = generate_data_batch(5000000)
 
 for n in range(9):
     c = 0
@@ -83,6 +84,6 @@ print("Baseline validation loss:", 1. - np.average(val_y))
 
 print("Training...")
 
-model.fit(train_x, train_y, epochs=100, batch_size=1, validation_data=(val_x, val_y),
+model.fit(train_x, train_y, epochs=25, batch_size=1, validation_data=(val_x, val_y),
           callbacks=[model_checkpoint_callback])
 

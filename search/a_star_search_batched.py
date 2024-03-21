@@ -5,7 +5,7 @@ VERBOSE = False
 total_node_expansion = 0
 iteration_node_expansion = 0
 MAX_NODE_EXPANSIONS = 250000000
-TIMEOUT = 864
+TIMEOUT = 30
 
 class Node:
 
@@ -21,11 +21,14 @@ class Node:
 
         self.h = None
         self.children = []
+        self.num_prims = len(self.all_primitives)
 
         self.batched_target_grids = []
         for _ in range(len(self.all_primitives)):
             for idx in range(support_y.shape[0]):
                 self.batched_target_grids.append(support_y[idx])
+
+        self.batched_target_grids = np.reshape(self.batched_target_grids, [len(self.batched_target_grids), -1])
 
     @staticmethod
     def apply_primitive(prim_func, grid_batch):
@@ -46,18 +49,18 @@ class Node:
             intermediate_grids = []
             for idx in range(len(self.all_primitives)):
 
-                tmp_grid = np.copy(self.current_grid)
                 prim = self.all_primitives[idx]
                 prim_func = prim[0]
-                transformed_grids = self.apply_primitive(prim_func, tmp_grid)
+
+                # NOTE: this assumes all primitives return a copy of the grid and do not touch the original
+                transformed_grids = self.apply_primitive(prim_func, self.current_grid)
 
                 total_node_expansion += 1
                 iteration_node_expansion += 1
 
-                child_node = Node(self.support_x, self.support_y,   # TODO: copies of the support set in each node is
-                                                                    #  redundant
+                child_node = Node(self.support_x, self.support_y,
                                   transformed_grids, prim,
-                                  self.all_primitives,              # TODO: also redundant?
+                                  self.all_primitives,
                                   name="%s/%s" % (self.name, prim[1]))
 
                 # first look for exact matches...
@@ -75,11 +78,11 @@ class Node:
 
                 tmp_children.append([np.inf, child_node])
 
+            intermediate_grids = np.reshape(intermediate_grids, [len(intermediate_grids), -1])
             sim_preds = model.get_batched_similarity(intermediate_grids, self.batched_target_grids)
 
             k = self.support_x.shape[0]
-            n = len(self.all_primitives)
-            median_sims_per_prim = np.median(np.reshape(sim_preds, [n, k]), axis=-1)
+            median_sims_per_prim = np.median(np.reshape(sim_preds, [self.num_prims, k]), axis=-1)
 
             h_per_prim = (1. - median_sims_per_prim) * 10
 
@@ -93,13 +96,8 @@ class Node:
                 return self.children
 
             # sort children based on their h value
-            children = sorted(tmp_children, key=lambda x: int(x[0]))
-
-            child_nodes = []
-            for c in children:
-                child_nodes.append(c[1])
-
-            self.children = child_nodes
+            tmp_children.sort(key=lambda x: x[0])
+            self.children = [child[1] for child in tmp_children]
 
         return self.children
 
