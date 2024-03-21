@@ -70,7 +70,8 @@ def validate(task, program):
         if np.any(a != b):
             return False
 
-    # TODO: also validate on the query set
+    # TODO: also validate on the query set, but must first fix the bug in data generation where the query and support
+    #  set examples aren't using the same program (for ARCGymVariableDataset)!
     return True
 
 batched_planning = BatchedAStarSearch(max_depth=MAX_DEPTH)

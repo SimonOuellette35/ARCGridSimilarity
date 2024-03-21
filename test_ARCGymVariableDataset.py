@@ -8,7 +8,7 @@ all_prims = primitives.get_total_set()
 metadata = {
     'num_nodes': [3, 3]
 }
-ds = ARCGymVariableDataset(all_prims, metadata)
+ds = ARCGymVariableDataset(all_prims, metadata, k=10)
 
 eval_loader = DataLoader(ds,
                          batch_size=1,
@@ -17,4 +17,5 @@ eval_loader = DataLoader(ds,
 
 for batch_idx, eval_task in enumerate(eval_loader):
 
-    viz.draw_batch(eval_task, 4)
+    print("eval_task['xs'] shape = ", eval_task['xs'].shape)
+    viz.draw_batch(eval_task, 4, grid_shape=[10, 10])
