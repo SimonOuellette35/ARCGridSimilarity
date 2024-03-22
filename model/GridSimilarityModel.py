@@ -19,44 +19,43 @@ import numpy as np
 # returns (n, embedding_dim) - one embedding vector per input sequence
 
 class SimilarityModel(keras.Model):
-    def __init__(self, embedding_dim=128, dtype='float16', **kwargs):
+    def __init__(self, embedding_dim=128, dtype='float32', **kwargs):
         super().__init__(**kwargs)
         inter_dim = 128
         n_heads = 4
-        act_fn = 'relu'
+        act_fn = lambda x: ops.gelu(x, approximate=True)
+        #act_fn = 'gelu'
+
+        # keras.config.set_dtype_policy("mixed_float16")
+
         self.positional_embedding = keras_nlp.layers.TokenAndPositionEmbedding(
             vocabulary_size=15,
             sequence_length=1024,
-            embedding_dim=128,
-            dtype=dtype
+            embedding_dim=128
         )
         self.backbone = keras.Sequential([
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn,
-                dtype=dtype
+                activation=act_fn
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn,
-                dtype=dtype
+                activation=act_fn
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn,
-                dtype=dtype
+                activation=act_fn
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn,
-                dtype=dtype
+                activation=act_fn
             ),
             keras.layers.GlobalMaxPooling1D(),
-            keras.layers.Dense(embedding_dim,dtype=dtype),
+            keras.layers.Dense(embedding_dim),
         ])
 
     def call(self, x):

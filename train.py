@@ -21,11 +21,12 @@ model = SimilarityModel(embedding_dim=EMB_DIM)
 model.compile(optimizer=keras.optimizers.AdamW(learning_rate=LR, weight_decay=DECAY))
 
 model_checkpoint_callback = ModelCheckpoint(
-    filepath='best_similarity_model.keras',    # Path where to save the model
+    filepath='best_similarity_model.weights.h5',    # Path where to save the model
     save_best_only=True,                    # Only save a model if `val_loss` has improved
     monitor='val_loss',                     # Monitor validation loss
     mode='min',                             # The lower the validation loss, the better
-    verbose=1                               # Log a message whenever a model is saved
+    verbose=1,                               # Log a message whenever a model is saved
+    save_weights_only=True
 )
 
 prim_functions = primitives.get_total_set()
