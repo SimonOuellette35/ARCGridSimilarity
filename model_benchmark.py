@@ -8,6 +8,8 @@ import time
 model = keras.saving.load_model("best_similarity_model.keras")
 man_heuristic = ManualHeuristic()
 
+model.quantize('int8')
+
 prim_functions = primitives.get_total_set()
 dataset = ARCInspiredSimilarityDataset(prim_functions, 5)
 
@@ -31,8 +33,9 @@ x_batches = []
 y_batches = []
 
 print("Generating data...")
+num_examples = 220
 for _ in range(1000):
-    x_grids, y_grids = generate_data_batch(220)
+    x_grids, y_grids = generate_data_batch(num_examples)
     x_batches.append(x_grids)
     y_batches.append(y_grids)
 
