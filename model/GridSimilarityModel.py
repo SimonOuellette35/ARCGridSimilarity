@@ -19,7 +19,7 @@ import numpy as np
 # returns (n, embedding_dim) - one embedding vector per input sequence
 
 class SimilarityModel(keras.Model):
-    def __init__(self, embedding_dim=128, **kwargs):
+    def __init__(self, embedding_dim=128, dtype='float16', **kwargs):
         super().__init__(**kwargs)
         inter_dim = 128
         n_heads = 4
@@ -28,30 +28,35 @@ class SimilarityModel(keras.Model):
             vocabulary_size=15,
             sequence_length=1024,
             embedding_dim=128,
+            dtype=dtype
         )
         self.backbone = keras.Sequential([
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn
+                activation=act_fn,
+                dtype=dtype
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn
+                activation=act_fn,
+                dtype=dtype
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn
+                activation=act_fn,
+                dtype=dtype
             ),
             keras_nlp.layers.TransformerEncoder(
                 intermediate_dim=inter_dim,
                 num_heads=n_heads,
-                activation=act_fn
+                activation=act_fn,
+                dtype=dtype
             ),
             keras.layers.GlobalMaxPooling1D(),
-            keras.layers.Dense(embedding_dim),
+            keras.layers.Dense(embedding_dim,dtype=dtype),
         ])
 
     def call(self, x):
@@ -102,7 +107,7 @@ class SimilarityModel(keras.Model):
 
         stacked_grids = np.concatenate((x_batch, y_batch), axis=0)
 
-        stacked_embeds = self.call(stacked_grids)
+        stacked_embeds = self.predict_on_batch(stacked_grids)
 
         # Now we get the pairwise product sum for the X vs Y embeddings.
         stack_x = stacked_embeds[:x_batch.shape[0]]
